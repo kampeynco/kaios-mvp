@@ -164,6 +164,13 @@ return (
         </div>
       </header>
 
+      {lastError && (
+        <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-3 text-red-700 dark:text-red-400">
+          <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+          <p className="text-sm font-medium">{lastError}</p>
+        </div>
+      )}
+
       <FileUpload.Root
         maxFiles={10}
         onFileAccept={handleUpload}
