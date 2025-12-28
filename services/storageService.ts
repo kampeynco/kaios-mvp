@@ -5,8 +5,8 @@ export const storageService = {
         const fileExt = file.name.split('.').pop();
         // Sanitize filename: replace non-alphanumeric chars (except . - _) with _
         const sanitizedName = file.name.substring(0, file.name.lastIndexOf('.')).replace(/[^a-zA-Z0-9.-]/g, '_').substring(0, 50);
-        // Append timestamp to ensure uniqueness while keeping it readable
-        const fileName = `${sanitizedName}_${Date.now()}.${fileExt}`;
+        // Use sanitized original name without timestamp to prevent duplicates (overwrite behavior)
+        const fileName = `${sanitizedName}.${fileExt}`;
         const filePath = `${workspaceId}/${fileName}`;
 
         // Supabase storage metadata
@@ -20,7 +20,7 @@ export const storageService = {
             .from(bucket)
             .upload(filePath, file, {
                 cacheControl: '3600',
-                upsert: false,
+                upsert: true, // Overwrite existing file with same name
                 contentType: file.type,
                 metadata: metadata // Store validation metadata
             });
