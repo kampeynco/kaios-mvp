@@ -295,6 +295,6 @@ export const FilesScreen: React.FC<FilesScreenProps> = ({ workspaceId }) => {
         </FileUpload.Root>
       </div>
     </div>
-    </div >
+
   );
 };
