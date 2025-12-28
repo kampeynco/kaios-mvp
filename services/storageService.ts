@@ -9,6 +9,8 @@ export const storageService = {
         const fileName = `${sanitizedName}.${fileExt}`;
         const filePath = `${workspaceId}/${fileName}`;
 
+        console.log('DEBUG: Uploading file', { bucket, workspaceId, filePath, file });
+
         // Supabase storage metadata
         const metadata = {
             originalName: file.name,
@@ -41,13 +43,14 @@ export const storageService = {
         };
     },
 
-    async deleteFile(bucket: string, path: string) {
+    async deleteFile(bucket: string, paths: string | string[]) {
+        const filesToDelete = Array.isArray(paths) ? paths : [paths];
         const { error } = await supabase.storage
             .from(bucket)
-            .remove([path]);
+            .remove(filesToDelete);
 
         if (error) {
-            console.error('Error deleting file:', error);
+            console.error('Error deleting file(s):', error);
             throw error;
         }
     },

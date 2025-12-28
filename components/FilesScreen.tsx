@@ -47,6 +47,40 @@ export const FilesScreen: React.FC<FilesScreenProps> = ({ workspaceId }) => {
   const [uploading, setUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+
+  const toggleSelect = (path: string) => {
+    const newSelected = new Set(selectedFiles);
+    if (newSelected.has(path)) {
+      newSelected.delete(path);
+    } else {
+      newSelected.add(path);
+    }
+    setSelectedFiles(newSelected);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedFiles.size === filteredFiles.length) {
+      setSelectedFiles(new Set());
+    } else {
+      setSelectedFiles(new Set(filteredFiles.map(f => f.path)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedFiles.size === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedFiles.size} files?`)) return;
+
+    try {
+      await storageService.deleteFile('workspace-files', Array.from(selectedFiles));
+      // Optimistic update
+      setFiles(prev => prev.filter(f => !selectedFiles.has(f.path)));
+      setSelectedFiles(new Set());
+    } catch (err: any) {
+      console.error('Bulk delete failed:', err);
+      setError(`Bulk delete failed: ${err.message}`);
+    }
+  };
 
   const loadFiles = useCallback(async () => {
     if (!workspaceId) {
@@ -219,16 +253,49 @@ export const FilesScreen: React.FC<FilesScreenProps> = ({ workspaceId }) => {
             </div>
           ) : (
             <div className="border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden bg-white dark:bg-gray-900">
+              {/* Action Bar for Bulk Selection */}
+              {selectedFiles.size > 0 && (
+                <div className="flex items-center justify-between px-6 py-3 bg-blue-50 dark:bg-blue-900/20 text-sm">
+                  <span className="text-blue-600 dark:text-blue-300 font-medium">
+                    {selectedFiles.size} selected
+                  </span>
+                  <button
+                    onClick={handleBulkDelete}
+                    className="flex items-center gap-2 text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 px-3 py-1.5 rounded transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Selected
+                  </button>
+                </div>
+              )}
+
               <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="col-span-6">Name</div>
+                <div className="col-span-1 flex items-center">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300 text-black focus:ring-black dark:border-gray-700 dark:bg-gray-800"
+                    checked={filteredFiles.length > 0 && selectedFiles.size === filteredFiles.length}
+                    onChange={toggleSelectAll}
+                  />
+                </div>
+                <div className="col-span-5">Name</div>
                 <div className="col-span-2">Type</div>
                 <div className="col-span-2">Size</div>
                 <div className="col-span-2 text-right">Actions</div>
               </div>
               <div className="divide-y divide-gray-100 dark:divide-gray-800">
                 {filteredFiles.map(file => (
-                  <div key={file.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group">
-                    <div className="col-span-6 flex items-center gap-3 overflow-hidden">
+                  <div key={file.id} className={`grid grid-cols-12 gap-4 px-6 py-4 items-center transition-colors group ${selectedFiles.has(file.path) ? 'bg-blue-50/50 dark:bg-blue-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                    }`}>
+                    <div className="col-span-1 flex items-center">
+                      <input
+                        type="checkbox"
+                        className="rounded border-gray-300 text-black focus:ring-black dark:border-gray-700 dark:bg-gray-800"
+                        checked={selectedFiles.has(file.path)}
+                        onChange={() => toggleSelect(file.path)}
+                      />
+                    </div>
+                    <div className="col-span-5 flex items-center gap-3 overflow-hidden">
                       <div className="w-8 h-8 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded text-gray-500 shrink-0">
                         {file.type.startsWith('image') ? (
                           <img src={file.url} alt={file.name} className="w-full h-full object-cover rounded" />
