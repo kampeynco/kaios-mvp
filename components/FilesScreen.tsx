@@ -58,7 +58,8 @@ export const FilesScreen: React.FC<FilesScreenProps> = ({ workspaceId }) => {
   const [uploading, setUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [lastError, setLastError] = useState<string | null>(null);
-  const [lastError, setLastError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<any>({});
+
 
   const loadFiles = useCallback(async () => {
     if (!workspaceId) {
@@ -66,15 +67,20 @@ export const FilesScreen: React.FC<FilesScreenProps> = ({ workspaceId }) => {
       return;
     }
     setLoading(true);
+    setLastError(null);
     try {
+      console.log(`Listing files for bucket workspace-files folder ${workspaceId}`);
       const data = await storageService.listFiles('workspace-files', workspaceId);
+      setDebugInfo((prev: any) => ({ ...prev, listResultLength: data.length, lastListTime: new Date().toISOString() }));
+
       // Sort by creation date descending
       setFiles(data.sort((a, b) => {
         return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading files:', error);
-      // alert('Error loading files: ' + (error as any).message); // Optional: verbose
+      setLastError(`Load Error: ${error.message}`);
+      setDebugInfo((prev: any) => ({ ...prev, listError: error.message }));
     } finally {
       setLoading(false);
     }
@@ -86,25 +92,34 @@ export const FilesScreen: React.FC<FilesScreenProps> = ({ workspaceId }) => {
   }, [loadFiles, workspaceId]);
 
   const handleUpload = async (event: any) => {
+    alert("Upload triggered!");
     const acceptedFiles = event.acceptedFiles as File[];
 
     if (!workspaceId) {
-      alert("Error: No active workspace found. Please select a workspace.");
+      alert("Error: No active workspace found.");
       return;
     }
 
-    if (acceptedFiles.length === 0) return;
+    if (acceptedFiles.length === 0) {
+      alert("No files accepted.");
+      return;
+    }
 
     setUploading(true);
+    setLastError(null);
     try {
       for (const file of acceptedFiles) {
-        await storageService.uploadFile('workspace-files', workspaceId, file);
+        alert(`Uploading ${file.name}...`);
+        const result = await storageService.uploadFile('workspace-files', workspaceId, file);
+        setDebugInfo(prev => ({ ...prev, lastUploadPath: result.path, lastUploadId: result.id }));
       }
       await loadFiles();
-      alert("Upload successful!");
+      alert("Upload successful! File should appear now.");
     } catch (error: any) {
       console.error('Error uploading files:', error);
-      alert(`Failed to upload files: ${error.message || 'Unknown error'}`);
+      const msg = `Failed to upload: ${error.message || 'Unknown error'}`;
+      setLastError(msg);
+      alert(msg);
     } finally {
       setUploading(false);
     }
@@ -284,6 +299,20 @@ export const FilesScreen: React.FC<FilesScreenProps> = ({ workspaceId }) => {
 
           <FileUpload.HiddenInput />
         </FileUpload.Root>
+      </div>
+      <div className="fixed bottom-4 right-4 bg-red-600 text-white p-6 rounded-xl z-50 shadow-2xl text-sm font-mono max-w-sm overflow-auto">
+        <h4 className="font-bold border-b border-white/20 mb-2 pb-1 text-lg">⚠️ DEBUG MODE</h4>
+        <div>Workspace ID: {workspaceId || 'NULL'}</div>
+        <div>ID Length: {workspaceId?.length || 0}</div>
+        <div>Loading: {loading ? 'YES' : 'NO'}</div>
+        <div>Uploading: {uploading ? 'YES' : 'NO'}</div>
+        <div>Files Count: {files.length}</div>
+        <div className="mt-2 pt-2 border-t border-white/20 text-xs">
+          <div>Last Upload: {debugInfo.lastUploadPath || '-'}</div>
+          <div>List Result: {debugInfo.listResultLength ?? '-'}</div>
+          <div>List Time: {debugInfo.lastListTime ? new Date(debugInfo.lastListTime).toLocaleTimeString() : '-'}</div>
+        </div>
+        {lastError && <div className="bg-white text-red-600 p-2 mt-2 rounded font-bold">Error: {lastError}</div>}
       </div>
     </div>
   );
