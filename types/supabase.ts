@@ -99,5 +99,13 @@ export interface Database {
         Enums: {
             workspace_role: 'owner' | 'admin' | 'member'
         }
+        Functions: {
+            create_workspace: {
+                Args: {
+                    name: string
+                }
+                Returns: Database['public']['Tables']['workspaces']['Row']
+            }
+        }
     }
 }

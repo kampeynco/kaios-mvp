@@ -6,30 +6,11 @@ type WorkspaceInvite = Database['public']['Tables']['workspace_invites']['Row'];
 
 export const workspaceService = {
     async createWorkspace(name: string, userId: string) {
-        // 1. Create Workspace
-        const { data: workspace, error: wsError } = await supabase
-            .from('workspaces')
-            .insert({ name })
-            .select()
+        const { data: workspace, error } = await supabase
+            .rpc('create_workspace', { name })
             .single();
 
-        if (wsError) throw wsError;
-
-        // 2. Add creator as Owner
-        const { error: memberError } = await supabase
-            .from('workspace_members')
-            .insert({
-                workspace_id: workspace.id,
-                user_id: userId,
-                role: 'owner',
-            });
-
-        if (memberError) {
-            // Rollback workspace creation if member addition fails (clean up)
-            await supabase.from('workspaces').delete().eq('id', workspace.id);
-            throw memberError;
-        }
-
+        if (error) throw error;
         return workspace;
     },
 

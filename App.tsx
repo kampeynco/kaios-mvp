@@ -161,6 +161,7 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen w-full flex-row bg-white dark:bg-background-dark">
       <Sidebar
+        user={session.user}
         onShowHome={() => setView('home')}
         onShowFiles={() => setView('files')}
         onShowCandidateProfile={() => setView('candidate-profile')}
@@ -181,9 +182,6 @@ const App: React.FC = () => {
               className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors text-sm hover:underline"
             >
               Sign Out
-            </button>
-            <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-              <span className="material-symbols-outlined text-[20px]">more_horiz</span>
             </button>
           </div>
         </header>

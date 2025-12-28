@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { User } from '@supabase/supabase-js';
+import { supabase } from '../services/supabaseClient';
 
 interface SidebarProps {
+  user: User | null;
   onShowHome: () => void;
   onShowFiles: () => void;
   onShowCandidateProfile: () => void;
@@ -13,6 +16,7 @@ interface SidebarProps {
 type ThemeMode = 'system' | 'light' | 'dark';
 
 export const Sidebar: React.FC<SidebarProps> = ({
+  user,
   onShowHome,
   onShowFiles,
   onShowCandidateProfile,
@@ -22,6 +26,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onShowChats
 }) => {
   const [theme, setTheme] = useState<ThemeMode>('system');
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Check local storage on mount, default to 'system' if not found
@@ -29,6 +35,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (savedTheme && ['system', 'light', 'dark'].includes(savedTheme)) {
       setTheme(savedTheme);
     }
+
+    // Close menu when clicking outside
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   useEffect(() => {
@@ -76,6 +93,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       case 'system': return 'System Mode';
     }
   };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+  };
+
+  const userName = user?.user_metadata?.full_name || 'User';
+  const userEmail = user?.email || '';
 
   return (
     <aside className="flex w-[260px] flex-col h-full border-r border-sidebar-border bg-sidebar-light dark:bg-background-dark dark:border-gray-800 transition-colors duration-300 shrink-0 z-20">
@@ -175,15 +199,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
 
-      <div className="p-4 border-t border-sidebar-border dark:border-gray-800 flex flex-col gap-2">
-        <button className="flex items-center w-full gap-3 px-2 py-1 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group text-left">
-          <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-600 dark:text-gray-200">A</div>
+      <div className="p-4 border-t border-sidebar-border dark:border-gray-800 relative z-50" ref={menuRef}>
+        <button
+          onClick={() => setShowMenu(!showMenu)}
+          className="flex items-center w-full gap-3 px-2 py-1 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group text-left"
+        >
+          <div className="w-8 h-8 rounded-full bg-rose-600 flex items-center justify-center text-xs font-bold text-white uppercase shrink-0">
+            {userName.charAt(0)}
+          </div>
           <div className="flex flex-col flex-1 min-w-0">
-            <span className="text-sm font-semibold text-text-main dark:text-white truncate">Admin User</span>
-            <span className="text-xs text-text-sub dark:text-gray-500 truncate">Campaign Manager</span>
+            <span className="text-sm font-semibold text-text-main dark:text-white truncate">{userName}</span>
+            <span className="text-xs text-text-sub dark:text-gray-500 truncate">{userEmail}</span>
           </div>
           <span className="material-symbols-outlined text-gray-400 text-[18px] group-hover:text-text-main dark:group-hover:text-white">settings</span>
         </button>
+
+        {showMenu && (
+          <div className="absolute bottom-full left-4 right-4 mb-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px]">person</span>
+              Profile
+            </button>
+            <div className="h-px bg-gray-100 dark:bg-gray-800 my-1" />
+            <button
+              onClick={handleSignOut}
+              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-[18px]">logout</span>
+              Log Out
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );
