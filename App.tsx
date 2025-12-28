@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { HomeScreen } from './components/HomeScreen';
 import { ChatScreen } from './components/ChatScreen';
@@ -11,14 +11,36 @@ import { NewProjectModal } from './components/NewProjectModal';
 import { RenameProjectModal } from './components/RenameProjectModal';
 import { generateResponse } from './services/geminiService';
 import { ChatMessage } from './types';
+import { supabase } from './services/supabaseClient';
+import { Session } from '@supabase/supabase-js';
+import Auth from './components/Auth';
+import { Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
+  const [session, setSession] = useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [view, setView] = useState<'home' | 'chats' | 'files' | 'candidate-profile' | 'drafts' | 'guardrails' | 'projects'>('home');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [projects, setProjects] = useState<string[]>(['Voter Outreach', 'Fall Campaign']);
   const [renamingProject, setRenamingProject] = useState<{ index: number; name: string } | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setAuthLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleStartChat = useCallback(async (initialPrompt: string) => {
     setView('chats');
@@ -89,9 +111,21 @@ const App: React.FC = () => {
     setProjects(prev => prev.filter((_, i) => i !== index));
   };
 
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-white dark:bg-background-dark text-gray-900 dark:text-gray-100">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Auth />;
+  }
+
   return (
     <div className="flex h-screen w-full flex-row bg-white dark:bg-background-dark">
-      <Sidebar 
+      <Sidebar
         onShowHome={() => setView('home')}
         onShowFiles={() => setView('files')}
         onShowCandidateProfile={() => setView('candidate-profile')}
@@ -106,19 +140,27 @@ const App: React.FC = () => {
             <span className="material-symbols-outlined text-[18px]">work</span>
             <span>Demo Candidate for Congress</span>
           </div>
-          <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-            <span className="material-symbols-outlined text-[20px]">more_horiz</span>
-          </button>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => supabase.auth.signOut()}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors text-sm hover:underline"
+            >
+              Sign Out
+            </button>
+            <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+              <span className="material-symbols-outlined text-[20px]">more_horiz</span>
+            </button>
+          </div>
         </header>
 
         {view === 'home' && (
           <HomeScreen onStartChat={handleStartChat} />
         )}
-        
+
         {view === 'chats' && (
-          <ChatScreen 
-            messages={messages} 
-            isLoading={isLoading} 
+          <ChatScreen
+            messages={messages}
+            isLoading={isLoading}
             onSendMessage={handleSendMessage}
             onNewChat={handleNewChat}
           />
@@ -141,7 +183,7 @@ const App: React.FC = () => {
         )}
 
         {view === 'projects' && (
-          <ProjectsScreen 
+          <ProjectsScreen
             projects={projects}
             onNewProject={() => setShowNewProjectModal(true)}
             onRenameProject={handleRenameProject}
@@ -149,10 +191,10 @@ const App: React.FC = () => {
           />
         )}
       </main>
-      
-      <NewProjectModal 
-        isOpen={showNewProjectModal} 
-        onClose={() => setShowNewProjectModal(false)} 
+
+      <NewProjectModal
+        isOpen={showNewProjectModal}
+        onClose={() => setShowNewProjectModal(false)}
         onCreate={handleCreateProject}
       />
 
