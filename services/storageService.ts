@@ -55,27 +55,85 @@ export const storageService = {
         }
     },
 
-    async listFiles(bucket: string, workspaceId: string) {
+    async moveFile(bucket: string, fromPath: string, toPath: string) {
+        const { error } = await supabase.storage
+            .from(bucket)
+            .move(fromPath, toPath);
+
+        if (error) throw error;
+    },
+
+    async createFolder(bucket: string, folderPath: string) {
+        // Create a placeholder file to establish the folder
+        const { error } = await supabase.storage
+            .from(bucket)
+            .upload(`${folderPath}/.keep`, new Blob([''], { type: 'text/plain' }));
+
+        if (error) throw error;
+    },
+
+    async listFiles(bucket: string, path: string, recursive: boolean = false): Promise<any[]> {
+        let allFiles: any[] = [];
+
         const { data, error } = await supabase.storage
             .from(bucket)
-            .list(workspaceId, {
+            .list(path, {
                 limit: 100,
                 offset: 0,
-                sortBy: { column: 'created_at', order: 'desc' },
+                sortBy: { column: 'name', order: 'asc' },
             });
 
         if (error) throw error;
 
-        return data.map(file => ({
-            id: `${workspaceId}/${file.name}`,
-            // Use original name if available in metadata, otherwise cleaner fallback or raw name
-            name: file.metadata?.originalName || file.name,
-            size: file.metadata?.size || 0,
-            type: file.metadata?.mimetype || 'application/octet-stream',
-            updated_at: file.updated_at,
-            created_at: file.created_at, // Ensure created_at is passed
-            path: `${workspaceId}/${file.name}`,
-            url: supabase.storage.from(bucket).getPublicUrl(`${workspaceId}/${file.name}`).data.publicUrl
-        }));
+        // Process current directory
+        for (const item of data) {
+            if (item.id === null) {
+                // It's a folder
+                if (recursive) {
+                    const subFiles = await this.listFiles(bucket, `${path}/${item.name}`, true);
+                    allFiles = [...allFiles, ...subFiles];
+                }
+            } else {
+                // It's a file
+                if (item.name !== '.keep') { // Ignore placeholder files
+                    allFiles.push({
+                        id: item.id,
+                        name: item.metadata?.originalName || item.name,
+                        originalName: item.name, // Keep the partial path name/key for logic if needed
+                        size: item.metadata?.size || 0,
+                        type: item.metadata?.mimetype || 'application/octet-stream',
+                        updated_at: item.updated_at,
+                        created_at: item.created_at,
+                        path: `${path}/${item.name}`,
+                        url: supabase.storage.from(bucket).getPublicUrl(`${path}/${item.name}`).data.publicUrl
+                    });
+                }
+            }
+        }
+
+        return allFiles;
+    },
+
+    async listFolders(bucket: string, path: string): Promise<string[]> {
+        const { data, error } = await supabase.storage
+            .from(bucket)
+            .list(path, {
+                limit: 100,
+                offset: 0,
+                sortBy: { column: 'name', order: 'asc' },
+            });
+
+        if (error) throw error;
+
+        const folders: string[] = [];
+        for (const item of data) {
+            if (item.id === null) {
+                // It is a folder
+                folders.push(item.name);
+                // Recursively find subfolders if needed, but for now flat list of top level or specific level
+                // For the sidebar, we might want just top-level folders within the workspace
+            }
+        }
+        return folders;
     }
 };
