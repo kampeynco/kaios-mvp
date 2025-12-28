@@ -19,7 +19,7 @@ interface FileItem {
 }
 
 interface FilesScreenProps {
-  activeWorkspaceId: string;
+  workspaceId: string;
 }
 
 // Draggable File Row Component
@@ -126,7 +126,7 @@ const FolderItem = ({ name, path, isActive, onClick, onDelete, isMain = false }:
   );
 };
 
-export const FilesScreen: React.FC<FilesScreenProps> = ({ activeWorkspaceId }) => {
+export const FilesScreen: React.FC<FilesScreenProps> = ({ workspaceId }) => {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [folders, setFolders] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,7 +140,6 @@ export const FilesScreen: React.FC<FilesScreenProps> = ({ activeWorkspaceId }) =
   const [newFolderName, setNewFolderName] = useState('');
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
 
-  const workspaceId = activeWorkspaceId;
 
   const loadData = useCallback(async () => {
     if (!workspaceId) return;
