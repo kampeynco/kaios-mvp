@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { User } from '@supabase/supabase-js';
-import { Loader2, Plus, Mail, ArrowRight, Check } from 'lucide-react';
+import { Loader2, Plus, Mail, ArrowRight, Check, LogOut } from 'lucide-react';
 import { workspaceService } from '../../services/workspaceService';
+import { supabase } from '../../services/supabaseClient';
 
 interface OnboardingWizardProps {
     user: User;
@@ -62,8 +63,19 @@ export function OnboardingWizard({ user, onComplete }: OnboardingWizardProps) {
         setStep(3);
     };
 
+    const handleSignOut = async () => {
+        await supabase.auth.signOut();
+    };
+
     return (
-        <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
+        <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 relative">
+            <button
+                onClick={handleSignOut}
+                className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 flex items-center gap-2 text-sm transition-colors"
+            >
+                <LogOut className="w-4 h-4" />
+                Sign Out
+            </button>
             <div className="max-w-md w-full bg-zinc-900 p-8 rounded-xl border border-zinc-800 shadow-2xl">
                 <div className="mb-8 text-center">
                     {step === 1 && (
