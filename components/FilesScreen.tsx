@@ -88,9 +88,9 @@ export const FilesScreen: React.FC<FilesScreenProps> = ({ workspaceId }) => {
         await storageService.uploadFile('workspace-files', workspaceId, file);
       }
       await loadFiles();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading files:', error);
-      alert('Failed to upload files. Please check your permissions.');
+      alert(`Failed to upload files: ${error.message || 'Unknown error'}`);
     } finally {
       setUploading(false);
     }
