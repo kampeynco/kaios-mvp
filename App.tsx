@@ -28,7 +28,7 @@ const App: React.FC = () => {
   const [projects, setProjects] = useState<string[]>(['Voter Outreach', 'Fall Campaign']);
   const [renamingProject, setRenamingProject] = useState<{ index: number; name: string } | null>(null);
 
-  const [hasWorkspace, setHasWorkspace] = useState<boolean | null>(null);
+  const [workspaces, setWorkspaces] = useState<any[] | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -36,7 +36,8 @@ const App: React.FC = () => {
       if (session) {
         checkWorkspaces(session.user.id);
       } else {
-        setAuthLoading(false);
+        setWorkspaces(null); // No session, no workspaces
+        setAuthLoading(false); // Auth check complete even if no session
       }
     });
 
@@ -47,7 +48,7 @@ const App: React.FC = () => {
       if (session) {
         checkWorkspaces(session.user.id);
       } else {
-        setHasWorkspace(null);
+        setWorkspaces(null);
       }
     });
 
@@ -57,19 +58,21 @@ const App: React.FC = () => {
   const checkWorkspaces = async (userId: string) => {
     try {
       const { workspaceService } = await import('./services/workspaceService');
-      const workspaces = await workspaceService.getUserWorkspaces(userId);
-      setHasWorkspace(workspaces.length > 0);
+      const data = await workspaceService.getUserWorkspaces(userId);
+      setWorkspaces(data);
     } catch (error) {
       console.error('Error checking workspaces:', error);
       // Fallback or handle error - for now assume no workspace if error to force retry or show error
-      setHasWorkspace(false);
+      setWorkspaces([]); // Treat error as no workspaces found
     } finally {
       setAuthLoading(false);
     }
   };
 
   const handleOnboardingComplete = () => {
-    setHasWorkspace(true);
+    if (session) {
+      checkWorkspaces(session.user.id);
+    }
     setView('home');
   };
 
@@ -154,9 +157,11 @@ const App: React.FC = () => {
     return <Auth />;
   }
 
-  if (hasWorkspace === false) {
+  if (workspaces !== null && workspaces.length === 0) {
     return <OnboardingWizard user={session.user} onComplete={handleOnboardingComplete} />;
   }
+
+  const activeWorkspace = workspaces && workspaces.length > 0 ? workspaces[0] : null;
 
   return (
     <div className="flex h-screen w-full flex-row bg-white dark:bg-background-dark">
@@ -172,17 +177,12 @@ const App: React.FC = () => {
       />
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-white dark:bg-background-dark relative transition-colors duration-300">
         <header className="h-16 border-b border-border-light dark:border-gray-800 flex items-center justify-between px-6 bg-white dark:bg-background-dark shrink-0 z-10 transition-colors duration-300">
-          <div className="flex items-center gap-2 text-sm text-text-sub dark:text-gray-400">
-            <span className="material-symbols-outlined text-[18px]">work</span>
-            <span>Demo Candidate for Congress</span>
+          <div className="flex items-center gap-2 text-sm text-text-main dark:text-white font-medium">
+            <span className="material-symbols-outlined text-[18px] text-gray-400">work</span>
+            <span>{activeWorkspace?.name || 'Loading workspace...'}</span>
           </div>
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => supabase.auth.signOut()}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors text-sm hover:underline"
-            >
-              Sign Out
-            </button>
+            {/* Redundant Sign Out and Ellipsis removed as requested */}
           </div>
         </header>
 
@@ -242,3 +242,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+```
