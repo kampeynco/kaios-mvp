@@ -109,8 +109,9 @@ export const FilesScreen: React.FC<FilesScreenProps> = ({ workspaceId }) => {
     setLastError(null);
     try {
       for (const file of acceptedFiles) {
-        alert(`Uploading ${file.name}...`);
+        alert(`Uploading File:\nName: ${file.name}\nSize: ${file.size}\nType: ${file.type}`);
         const result = await storageService.uploadFile('workspace-files', workspaceId, file);
+        alert(`Upload Result Path: ${result.path}`);
         setDebugInfo(prev => ({ ...prev, lastUploadPath: result.path, lastUploadId: result.id }));
       }
       await loadFiles();
@@ -311,6 +312,9 @@ export const FilesScreen: React.FC<FilesScreenProps> = ({ workspaceId }) => {
           <div>Last Upload: {debugInfo.lastUploadPath || '-'}</div>
           <div>List Result: {debugInfo.listResultLength ?? '-'}</div>
           <div>List Time: {debugInfo.lastListTime ? new Date(debugInfo.lastListTime).toLocaleTimeString() : '-'}</div>
+          <div className="mt-2 text-[10px] break-all">
+            Env URL: {import.meta.env.VITE_SUPABASE_URL || 'MISSING'}
+          </div>
         </div>
         {lastError && <div className="bg-white text-red-600 p-2 mt-2 rounded font-bold">Error: {lastError}</div>}
       </div>
