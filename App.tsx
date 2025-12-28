@@ -14,6 +14,7 @@ import { ChatMessage } from './types';
 import { supabase } from './services/supabaseClient';
 import { Session } from '@supabase/supabase-js';
 import Auth from './components/Auth';
+import { OnboardingWizard } from './components/Onboarding/OnboardingWizard';
 import { Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -27,20 +28,50 @@ const App: React.FC = () => {
   const [projects, setProjects] = useState<string[]>(['Voter Outreach', 'Fall Campaign']);
   const [renamingProject, setRenamingProject] = useState<{ index: number; name: string } | null>(null);
 
+  const [hasWorkspace, setHasWorkspace] = useState<boolean | null>(null);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setAuthLoading(false);
+      if (session) {
+        checkWorkspaces(session.user.id);
+      } else {
+        setAuthLoading(false);
+      }
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session) {
+        checkWorkspaces(session.user.id);
+      } else {
+        setHasWorkspace(null);
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const checkWorkspaces = async (userId: string) => {
+    try {
+      const { workspaceService } = await import('./services/workspaceService');
+      const workspaces = await workspaceService.getUserWorkspaces(userId);
+      setHasWorkspace(workspaces.length > 0);
+    } catch (error) {
+      console.error('Error checking workspaces:', error);
+      // Fallback or handle error - for now assume no workspace if error to force retry or show error
+      setHasWorkspace(false);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleOnboardingComplete = () => {
+    setHasWorkspace(true);
+    setView('home');
+  };
 
   const handleStartChat = useCallback(async (initialPrompt: string) => {
     setView('chats');
@@ -121,6 +152,10 @@ const App: React.FC = () => {
 
   if (!session) {
     return <Auth />;
+  }
+
+  if (hasWorkspace === false) {
+    return <OnboardingWizard user={session.user} onComplete={handleOnboardingComplete} />;
   }
 
   return (
