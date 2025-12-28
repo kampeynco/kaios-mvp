@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Ban, Palette, Plus, ShieldAlert, CheckCircle, Save, X, AlertTriangle } from 'lucide-react';
+import { guardrailService } from '../services/guardrailService';
+import { Loader2 } from 'lucide-react';
 
 type Tab = 'forbidden' | 'tone' | 'approved';
 
@@ -9,8 +9,65 @@ interface Rule {
   description: string;
 }
 
-export const GuardrailsScreen: React.FC = () => {
+interface GuardrailsScreenProps {
+  workspaceId: string | null;
+}
+
+export const GuardrailsScreen: React.FC<GuardrailsScreenProps> = ({ workspaceId }) => {
   const [activeTab, setActiveTab] = useState<Tab>('approved');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Centralized State
+  const [approvedTopics, setApprovedTopics] = useState<Rule[]>([]);
+  const [forbiddenTopics, setForbiddenTopics] = useState<Rule[]>([]);
+  const [toneStyle, setToneStyle] = useState<any>({
+    adjectives: ['Empathetic', 'Decisive', 'Optimistic', 'Data-driven'],
+    readingLevel: 4,
+    stylisticPreferences: "Use short sentences. Avoid jargon. Always bring problems back to how they affect working families in the district."
+  });
+
+  useEffect(() => {
+    const loadGuardrails = async () => {
+      if (!workspaceId) return;
+      setLoading(true);
+      try {
+        const data = await guardrailService.getGuardrails(workspaceId);
+        if (data) {
+          setApprovedTopics((data.approved_topics as any[]) || []);
+          setForbiddenTopics((data.forbidden_topics as any[]) || []);
+          setToneStyle(data.tone_style || {
+            adjectives: ['Empathetic', 'Decisive', 'Optimistic', 'Data-driven'],
+            readingLevel: 4,
+            stylisticPreferences: "Use short sentences. Avoid jargon. Always bring problems back to how they affect working families in the district."
+          });
+        }
+      } catch (error) {
+        console.error('Error loading guardrails:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadGuardrails();
+  }, [workspaceId]);
+
+  const handleSave = async () => {
+    if (!workspaceId) return;
+    setSaving(true);
+    try {
+      await guardrailService.upsertGuardrails({
+        workspace_id: workspaceId,
+        approved_topics: approvedTopics as any,
+        forbidden_topics: forbiddenTopics as any,
+        tone_style: toneStyle,
+      });
+    } catch (error) {
+      console.error('Error saving guardrails:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const tabs = [
     { id: 'approved', label: 'Approved Topics', icon: CheckCircle },
@@ -35,8 +92,8 @@ export const GuardrailsScreen: React.FC = () => {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as Tab)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${isActive
-                    ? 'bg-black dark:bg-white text-white dark:text-black'
-                    : 'text-text-sub dark:text-gray-400 hover:text-text-main dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+                  ? 'bg-black dark:bg-white text-white dark:text-black'
+                  : 'text-text-sub dark:text-gray-400 hover:text-text-main dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
                   }`}
               >
                 <Icon className={`w-4 h-4 ${isActive ? 'text-white dark:text-black' : 'text-gray-400'}`} />
@@ -49,17 +106,38 @@ export const GuardrailsScreen: React.FC = () => {
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto p-8">
-          <div style={{ display: activeTab === 'forbidden' ? 'block' : 'none' }} className="animate-in fade-in duration-300">
-            <ForbiddenView />
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
           </div>
-          <div style={{ display: activeTab === 'approved' ? 'block' : 'none' }} className="animate-in fade-in duration-300">
-            <ApprovedTopicsView />
+        ) : (
+          <div className="max-w-4xl mx-auto p-8">
+            <div style={{ display: activeTab === 'forbidden' ? 'block' : 'none' }} className="animate-in fade-in duration-300">
+              <ForbiddenView
+                rules={forbiddenTopics}
+                setRules={setForbiddenTopics}
+                onSave={handleSave}
+                saving={saving}
+              />
+            </div>
+            <div style={{ display: activeTab === 'approved' ? 'block' : 'none' }} className="animate-in fade-in duration-300">
+              <ApprovedTopicsView
+                topics={approvedTopics}
+                setTopics={setApprovedTopics}
+                onSave={handleSave}
+                saving={saving}
+              />
+            </div>
+            <div style={{ display: activeTab === 'tone' ? 'block' : 'none' }} className="animate-in fade-in duration-300">
+              <ToneView
+                toneStyle={toneStyle}
+                setToneStyle={setToneStyle}
+                onSave={handleSave}
+                saving={saving}
+              />
+            </div>
           </div>
-          <div style={{ display: activeTab === 'tone' ? 'block' : 'none' }} className="animate-in fade-in duration-300">
-            <ToneView />
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -166,12 +244,14 @@ const DeleteRuleModal: React.FC<{
   );
 }
 
-const ForbiddenView: React.FC = () => {
-  const [rules, setRules] = useState<Rule[]>([
-    { id: '1', title: "Previous Primary Opponent", description: "Do not mention the specifics of the 2022 primary debates." },
-    { id: '2', title: "Family Private Matters", description: "Strictly avoid any mention of candidate's children's schools." },
-    { id: '3', title: "Unverified Rumors", description: "Do not speculate on opposition scandals that haven't been confirmed by major press." },
-  ]);
+interface ForbiddenViewProps {
+  rules: Rule[];
+  setRules: React.Dispatch<React.SetStateAction<Rule[]>>;
+  onSave: () => void;
+  saving: boolean;
+}
+
+const ForbiddenView: React.FC<ForbiddenViewProps> = ({ rules, setRules, onSave, saving }) => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -201,13 +281,22 @@ const ForbiddenView: React.FC = () => {
           <h1 className="text-2xl font-serif text-text-main dark:text-white">Forbidden Topics</h1>
           <p className="text-text-sub dark:text-gray-400 mt-1">Topics the AI should strictly avoid mentioning.</p>
         </div>
-        <button
-          onClick={() => setIsAddOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Add Rule
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 bg-black dark:bg-white text-white dark:text-black text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors shadow-sm disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+          <button
+            onClick={() => setIsAddOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Add Rule
+          </button>
+        </div>
       </div>
 
       <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-xl p-4 flex gap-3 text-red-800 dark:text-red-300 text-sm">
@@ -241,12 +330,14 @@ const ForbiddenView: React.FC = () => {
   );
 };
 
-const ApprovedTopicsView: React.FC = () => {
-  const [topics, setTopics] = useState<Rule[]>([
-    { id: '1', title: "Economic Revitalization", description: "Focus on small business grants and local job creation programs." },
-    { id: '2', title: "Healthcare Access", description: "Emphasize lowering prescription costs and protecting rural hospitals." },
-    { id: '3', title: "Public Safety", description: "Support for community policing and mental health first responders." },
-  ]);
+interface ApprovedTopicsViewProps {
+  topics: Rule[];
+  setTopics: React.Dispatch<React.SetStateAction<Rule[]>>;
+  onSave: () => void;
+  saving: boolean;
+}
+
+const ApprovedTopicsView: React.FC<ApprovedTopicsViewProps> = ({ topics, setTopics, onSave, saving }) => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -276,13 +367,22 @@ const ApprovedTopicsView: React.FC = () => {
           <h1 className="text-2xl font-serif text-text-main dark:text-white">Approved Topics</h1>
           <p className="text-text-sub dark:text-gray-400 mt-1">Core themes and subjects to prioritize in generation.</p>
         </div>
-        <button
-          onClick={() => setIsAddOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-black dark:bg-white text-white dark:text-black text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Add Rule
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 bg-black dark:bg-white text-white dark:text-black text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors shadow-sm disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+          <button
+            onClick={() => setIsAddOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-black dark:bg-white text-white dark:text-black text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Add Rule
+          </button>
+        </div>
       </div>
 
       <div className="bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-900/30 rounded-xl p-4 flex gap-3 text-green-800 dark:text-green-300 text-sm">
@@ -316,7 +416,14 @@ const ApprovedTopicsView: React.FC = () => {
   );
 };
 
-const ToneView: React.FC = () => {
+interface ToneViewProps {
+  toneStyle: any;
+  setToneStyle: React.Dispatch<React.SetStateAction<any>>;
+  onSave: () => void;
+  saving: boolean;
+}
+
+const ToneView: React.FC<ToneViewProps> = ({ toneStyle, setToneStyle, onSave, saving }) => {
   const READING_LEVELS = [
     '6th Grade',
     '7th Grade',
@@ -328,11 +435,12 @@ const ToneView: React.FC = () => {
     'Academic'
   ];
 
-  const [adjectives, setAdjectives] = useState<string[]>(['Empathetic', 'Decisive', 'Optimistic', 'Data-driven']);
+  const adjectives = toneStyle.adjectives || [];
+  const readingLevel = toneStyle.readingLevel || 0;
+  const stylisticPreferences = toneStyle.stylisticPreferences || "";
+
   const [newAdjective, setNewAdjective] = useState('');
   const [isAddingAdjective, setIsAddingAdjective] = useState(false);
-  const [readingLevel, setReadingLevel] = useState(4); // Index for '10th Grade'
-  const [stylisticPreferences, setStylisticPreferences] = useState("Use short sentences. Avoid jargon. Always bring problems back to how they affect working families in the district.");
 
   const sliderRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
@@ -340,14 +448,14 @@ const ToneView: React.FC = () => {
   // Handle Adjectives
   const handleAddAdjective = () => {
     if (newAdjective.trim()) {
-      setAdjectives([...adjectives, newAdjective.trim()]);
+      setToneStyle({ ...toneStyle, adjectives: [...adjectives, newAdjective.trim()] });
       setNewAdjective('');
       setIsAddingAdjective(false);
     }
   };
 
   const handleRemoveAdjective = (tag: string) => {
-    setAdjectives(adjectives.filter(t => t !== tag));
+    setToneStyle({ ...toneStyle, adjectives: adjectives.filter(t => t !== tag) });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -365,7 +473,7 @@ const ToneView: React.FC = () => {
 
       // Convert percentage to discrete index
       const index = Math.round((percentage / 100) * (READING_LEVELS.length - 1));
-      setReadingLevel(index);
+      setToneStyle({ ...toneStyle, readingLevel: index });
     }
   };
 
@@ -394,9 +502,8 @@ const ToneView: React.FC = () => {
     };
   }, []);
 
-  const handleSave = () => {
-    // Mock save functionality
-    alert("Tone & Style preferences saved successfully.");
+  const setStylisticPreferences = (value: string) => {
+    setToneStyle({ ...toneStyle, stylisticPreferences: value });
   };
 
   return (
@@ -407,11 +514,12 @@ const ToneView: React.FC = () => {
           <p className="text-text-sub dark:text-gray-400 mt-1">Define the voice of the candidate.</p>
         </div>
         <button
-          onClick={handleSave}
-          className="flex items-center gap-2 px-4 py-2 bg-black dark:bg-white text-white dark:text-black text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors shadow-sm"
+          onClick={onSave}
+          disabled={saving}
+          className="flex items-center gap-2 px-4 py-2 bg-black dark:bg-white text-white dark:text-black text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors shadow-sm disabled:opacity-50"
         >
           <Save className="w-4 h-4" />
-          Save Changes
+          {saving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
 

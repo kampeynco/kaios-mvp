@@ -7,8 +7,6 @@ import { CandidateProfileScreen } from './components/CandidateProfileScreen';
 import { DraftsScreen } from './components/DraftsScreen';
 import { GuardrailsScreen } from './components/GuardrailsScreen';
 import { ProjectsScreen } from './components/ProjectsScreen';
-import { NewProjectModal } from './components/NewProjectModal';
-import { RenameProjectModal } from './components/RenameProjectModal';
 import { generateResponse } from './services/geminiService';
 import { ChatMessage } from './types';
 import { supabase } from './services/supabaseClient';
@@ -24,9 +22,6 @@ const App: React.FC = () => {
   const [view, setView] = useState<'home' | 'chats' | 'files' | 'candidate-profile' | 'drafts' | 'guardrails' | 'projects' | 'create-workspace'>('home');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showNewProjectModal, setShowNewProjectModal] = useState(false);
-  const [projects, setProjects] = useState<string[]>(['Voter Outreach', 'Fall Campaign']);
-  const [renamingProject, setRenamingProject] = useState<{ index: number; name: string } | null>(null);
 
   const [workspaces, setWorkspaces] = useState<any[] | null>(null);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
@@ -125,30 +120,6 @@ const App: React.FC = () => {
     setView('chats');
   };
 
-  const handleCreateProject = (name: string, memory: 'default' | 'project-only') => {
-    setProjects(prev => [...prev, name]);
-    setShowNewProjectModal(false);
-  };
-
-  const handleRenameProject = (index: number) => {
-    setRenamingProject({ index, name: projects[index] });
-  };
-
-  const handleRenameSubmit = (newName: string) => {
-    if (renamingProject && newName.trim()) {
-      setProjects(prev => {
-        const updated = [...prev];
-        updated[renamingProject.index] = newName.trim();
-        return updated;
-      });
-      setRenamingProject(null);
-    }
-  };
-
-  const handleDeleteProject = (index: number) => {
-    setProjects(prev => prev.filter((_, i) => i !== index));
-  };
-
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white dark:bg-background-dark text-gray-900 dark:text-gray-100">
@@ -224,46 +195,30 @@ const App: React.FC = () => {
         )}
 
         {view === 'files' && (
-          <FilesScreen />
+          <FilesScreen workspaceId={activeWorkspaceId} />
         )}
 
         {view === 'candidate-profile' && (
-          <CandidateProfileScreen />
+          <CandidateProfileScreen workspaceId={activeWorkspaceId} />
         )}
 
         {view === 'drafts' && (
-          <DraftsScreen />
+          <DraftsScreen workspaceId={activeWorkspaceId} />
         )}
 
         {view === 'guardrails' && (
-          <GuardrailsScreen />
+          <GuardrailsScreen workspaceId={activeWorkspaceId} />
         )}
 
         {view === 'projects' && (
           <ProjectsScreen
-            projects={projects}
-            onNewProject={() => setShowNewProjectModal(true)}
-            onRenameProject={handleRenameProject}
-            onDeleteProject={handleDeleteProject}
+            workspaceId={activeWorkspaceId}
           />
         )}
         {view === 'create-workspace' && (
           <OnboardingWizard user={session.user} onComplete={handleOnboardingComplete} />
         )}
       </main>
-
-      <NewProjectModal
-        isOpen={showNewProjectModal}
-        onClose={() => setShowNewProjectModal(false)}
-        onCreate={handleCreateProject}
-      />
-
-      <RenameProjectModal
-        isOpen={!!renamingProject}
-        onClose={() => setRenamingProject(null)}
-        onRename={handleRenameSubmit}
-        currentName={renamingProject?.name || ''}
-      />
     </div>
   );
 };
