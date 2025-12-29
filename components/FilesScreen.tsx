@@ -175,14 +175,14 @@ export const FilesScreen: React.FC<FilesScreenProps> = ({ workspaceId }) => {
     setLoading(true);
     setError(null);
     try {
+      // Always fetch folders to keep sidebar consistent
+      const folderList = await storageService.listFolders('workspace-files', workspaceId);
+      setFolders(folderList);
+
       if (view === 'trash') {
         const trashList = await storageService.listTrash(workspaceId);
         setFiles(trashList);
-        setFolders([]); // No folders in trash for now
       } else {
-        const folderList = await storageService.listFolders('workspace-files', workspaceId);
-        setFolders(folderList);
-
         const path = currentFolder ? `${workspaceId}/${currentFolder}` : workspaceId;
         const recursive = currentFolder === null;
 
@@ -484,8 +484,8 @@ export const FilesScreen: React.FC<FilesScreenProps> = ({ workspaceId }) => {
                       key={folder}
                       name={folder}
                       path={folder}
-                      isActive={currentFolder === folder}
-                      onClick={() => setCurrentFolder(folder)}
+                      isActive={view === 'drive' && currentFolder === folder}
+                      onClick={() => { setView('drive'); setCurrentFolder(folder); }}
                       onDelete={() => handleDeleteFolder(folder)}
                     />
                   ))}
