@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { HomeScreen } from './components/HomeScreen';
 import { ChatScreen } from './components/ChatScreen';
@@ -9,69 +9,37 @@ import { GuardrailsScreen } from './components/GuardrailsScreen';
 import { ProjectsScreen } from './components/ProjectsScreen';
 import { generateResponse } from './services/geminiService';
 import { ChatMessage } from './types';
-import { supabase } from './services/supabaseClient';
-import { Session } from '@supabase/supabase-js';
-import Auth from './components/Auth';
+import { User } from '@supabase/supabase-js';
 import { OnboardingWizard } from './components/Onboarding/OnboardingWizard';
-import { Loader2 } from 'lucide-react';
+
+// Auth disabled for product iteration. To re-enable, restore the InsForge
+// auth/session bootstrap from git history (commit before this change).
+const DEV_WORKSPACE_ID =
+  (import.meta as any).env?.VITE_DEV_WORKSPACE_ID ??
+  '00000000-0000-0000-0000-000000000000';
+
+const MOCK_USER = {
+  id: 'dev-user',
+  email: 'dev@local',
+  user_metadata: { full_name: 'Dev User' },
+  app_metadata: {},
+  aud: 'authenticated',
+  created_at: new Date().toISOString(),
+} as unknown as User;
+
+const MOCK_WORKSPACES = [
+  { id: DEV_WORKSPACE_ID, name: 'Dev Workspace', role: 'owner' },
+];
 
 const App: React.FC = () => {
-  const [session, setSession] = useState<Session | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-
   const [view, setView] = useState<'home' | 'chats' | 'files' | 'candidate-profile' | 'drafts' | 'guardrails' | 'projects' | 'create-workspace'>('home');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const [workspaces, setWorkspaces] = useState<any[] | null>(null);
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) {
-        checkWorkspaces(session.user.id);
-      } else {
-        setWorkspaces(null); // No session, no workspaces
-        setAuthLoading(false); // Auth check complete even if no session
-      }
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) {
-        checkWorkspaces(session.user.id);
-      } else {
-        setWorkspaces(null);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const checkWorkspaces = async (userId: string) => {
-    try {
-      const { workspaceService } = await import('./services/workspaceService');
-      const data = await workspaceService.getUserWorkspaces(userId);
-      setWorkspaces(data);
-      if (data.length > 0 && !activeWorkspaceId) {
-        setActiveWorkspaceId(data[0].id);
-      }
-    } catch (error) {
-      console.error('Error checking workspaces:', error);
-      // Fallback or handle error - for now assume no workspace if error to force retry or show error
-      setWorkspaces([]); // Treat error as no workspaces found
-    } finally {
-      setAuthLoading(false);
-    }
-  };
+  const [workspaces] = useState<any[]>(MOCK_WORKSPACES);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>(DEV_WORKSPACE_ID);
 
   const handleOnboardingComplete = () => {
-    if (session) {
-      checkWorkspaces(session.user.id);
-    }
     setView('home');
   };
 
@@ -120,41 +88,27 @@ const App: React.FC = () => {
     setView('chats');
   };
 
-  if (authLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-white dark:bg-background-dark text-gray-900 dark:text-gray-100">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
-      </div>
-    );
-  }
-
-  if (!session) {
-    return <Auth />;
-  }
-
-  if (workspaces !== null && (workspaces.length === 0 || view === 'create-workspace')) {
+  if (view === 'create-workspace') {
     return (
       <div className="relative">
-        {view === 'create-workspace' && (
-          <button
-            onClick={() => setView('home')}
-            className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 rounded-lg text-text-sub dark:text-gray-400 hover:text-text-main dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors z-50"
-          >
-            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-            Back to Dashboard
-          </button>
-        )}
-        <OnboardingWizard user={session.user} onComplete={handleOnboardingComplete} />
+        <button
+          onClick={() => setView('home')}
+          className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 rounded-lg text-text-sub dark:text-gray-400 hover:text-text-main dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors z-50"
+        >
+          <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+          Back to Dashboard
+        </button>
+        <OnboardingWizard user={MOCK_USER} onComplete={handleOnboardingComplete} />
       </div>
     );
   }
 
-  const activeWorkspace = workspaces?.find(w => w.id === activeWorkspaceId) || (workspaces && workspaces.length > 0 ? workspaces[0] : null);
+  const activeWorkspace = workspaces.find(w => w.id === activeWorkspaceId) || workspaces[0];
 
   return (
     <div className="flex h-screen w-full flex-row bg-white dark:bg-background-dark">
       <Sidebar
-        user={session.user}
+        user={MOCK_USER}
         workspaces={workspaces}
         activeWorkspaceId={activeWorkspaceId}
         onSwitchWorkspace={(id) => {
@@ -214,9 +168,6 @@ const App: React.FC = () => {
           <ProjectsScreen
             workspaceId={activeWorkspaceId}
           />
-        )}
-        {view === 'create-workspace' && (
-          <OnboardingWizard user={session.user} onComplete={handleOnboardingComplete} />
         )}
       </main>
     </div>
